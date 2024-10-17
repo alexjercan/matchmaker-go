@@ -3,7 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"rps-multiplayer/pkg/models"
+	"matchmaker"
 
 	"github.com/uptrace/bun"
 )
@@ -13,7 +13,7 @@ func init() {
 		fmt.Print(" [up migration] ")
 
 		_, err := db.NewCreateTable().
-			Model((*models.Room)(nil)).
+			Model((*matchmaker.Room)(nil)).
 			Exec(ctx)
 		if err != nil {
 			panic(err)
@@ -24,7 +24,7 @@ func init() {
 		fmt.Print(" [down migration] ")
 
 		_, err := db.NewDropTable().
-			Model((*models.Room)(nil)).
+			Model((*matchmaker.Room)(nil)).
 			IfExists().
 			Exec(ctx)
 		if err != nil {

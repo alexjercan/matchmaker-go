@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"rps-multiplayer/migrations"
-	"rps-multiplayer/pkg/config"
-	"rps-multiplayer/pkg/database"
+	"matchmaker/migrations"
+	"matchmaker"
 	"strings"
 
 	"github.com/uptrace/bun/migrate"
@@ -15,8 +14,8 @@ import (
 )
 
 func main() {
-	cfg := config.LoadConfig()
-	db := database.New(cfg)
+	cfg := matchmaker.LoadConfig()
+	db := matchmaker.NewDB(cfg)
 
 	app := &cli.App{
 		Name:  "Bun migrations tool",

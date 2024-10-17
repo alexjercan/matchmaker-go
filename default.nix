@@ -13,7 +13,7 @@
 }:
 
 buildGoApplication {
-  pname = "myapp";
+  pname = "matchmaker";
   version = "0.1";
   pwd = ./.;
   src = ./.;
