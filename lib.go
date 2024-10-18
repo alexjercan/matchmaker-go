@@ -73,7 +73,7 @@ type Room struct {
 	bun.BaseModel `bun:"table:rooms,alias:r"`
 
 	ID         int64     `bun:"id,pk,autoincrement" json:"id"`
-	Code       string    `bun:"code,type:varchar(6),notnull" json:"code"`
+	Code       string    `bun:"code,type:varchar(6),unique" json:"code"`
 	Address    string    `bun:"address,type:varchar(128),notnull" json:"address"`
 	QueryPort  int       `bun:"queryPort,type:int,notnull" json:"queryPort"`
 	GamePort   int       `bun:"gamePort,type:int,notnull" json:"gamePort"`

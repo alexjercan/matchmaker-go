@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
+	"matchmaker"
 	"net"
 	"net/http"
-	"matchmaker"
+	"os/exec"
 
 	"github.com/gin-gonic/gin"
 	"github.com/uptrace/bun"
@@ -35,7 +37,11 @@ func (this gameServerDocker)Spawn(code string, maxPlayers int) (address string, 
 
     address = "0.0.0.0"
 
-    // TODO: run the docker command
+    cmd := exec.Command("docker", "run", "-d", "-p", fmt.Sprintf("%d:6969", game), "game-echo:latest")
+    slog.Info("Running command: {}", cmd)
+    if err = cmd.Run(); err != nil {
+        return
+    }
 
     return
 }
