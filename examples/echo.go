@@ -36,21 +36,21 @@ func LoadConfig() Config {
 }
 
 type GameClient struct {
-    server *GameServer
-    conn net.Conn
+	server *GameServer
+	conn   net.Conn
 }
 
-func (this GameClient)Read(b []byte) (n int, err error) {
-    return this.conn.Read(b)
+func (this GameClient) Read(b []byte) (n int, err error) {
+	return this.conn.Read(b)
 }
 
-func (this GameClient)Write(b []byte) (n int, err error) {
-    return this.conn.Write(b)
+func (this GameClient) Write(b []byte) (n int, err error) {
+	return this.conn.Write(b)
 }
 
-func (this GameClient)Close() error {
-    delete(this.server.Players, this)
-    return this.conn.Close()
+func (this GameClient) Close() error {
+	delete(this.server.Players, this)
+	return this.conn.Close()
 }
 
 type GameServer struct {
@@ -60,44 +60,44 @@ type GameServer struct {
 }
 
 func NewGameServer(address string, port int, maxPlayers int) (s GameServer, err error) {
-    address = fmt.Sprintf("%s:%d", address, port)
+	address = fmt.Sprintf("%s:%d", address, port)
 	listener, err := net.Listen("tcp", address)
-    if err != nil {
-        return
-    }
+	if err != nil {
+		return
+	}
 
-    listener = netutil.LimitListener(listener, maxPlayers)
+	listener = netutil.LimitListener(listener, maxPlayers)
 	return GameServer{Players: map[GameClient]bool{}, MaxPlayers: maxPlayers, listener: listener}, nil
 }
 
-func (this GameServer)Accept() (c GameClient, err error) {
-    conn, err := this.listener.Accept()
-    if err != nil {
-        return
-    }
+func (this GameServer) Accept() (c GameClient, err error) {
+	conn, err := this.listener.Accept()
+	if err != nil {
+		return
+	}
 
-    c = GameClient{conn: conn, server: &this}
-    this.Players[c] = true
+	c = GameClient{conn: conn, server: &this}
+	this.Players[c] = true
 
-    return
+	return
 }
 
-func (this GameServer)Write(b []byte) (n int, err error) {
-    for c := range this.Players {
-        n, err = c.Write(b)
-        if err != nil {
-            return
-        }
-    }
+func (this GameServer) Write(b []byte) (n int, err error) {
+	for c := range this.Players {
+		n, err = c.Write(b)
+		if err != nil {
+			return
+		}
+	}
 
-    return
+	return
 }
 
-func (this GameServer)Close() error {
-    for c := range this.Players {
-        c.Close()
-    }
-    return this.listener.Close()
+func (this GameServer) Close() error {
+	for c := range this.Players {
+		c.Close()
+	}
+	return this.listener.Close()
 }
 
 func handleConnection(conn GameClient) {
@@ -132,21 +132,21 @@ func handleConnection(conn GameClient) {
 }
 
 type HandlerV1 struct {
-    gameServer GameServer
+	gameServer GameServer
 }
 
 func NewHandler(gameServer GameServer) HandlerV1 {
-    return HandlerV1{gameServer: gameServer}
+	return HandlerV1{gameServer: gameServer}
 }
 
 type StatusResponse struct {
-	Players       int `json:"players"`
+	Players int `json:"players"`
 }
 
 func (this HandlerV1) Status(c *gin.Context) {
-    players := len(this.gameServer.Players)
+	players := len(this.gameServer.Players)
 
-	c.JSON(http.StatusOK, StatusResponse { Players: players })
+	c.JSON(http.StatusOK, StatusResponse{Players: players})
 }
 
 func mainHTTP(cfg Config, server GameServer) {

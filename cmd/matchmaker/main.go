@@ -42,7 +42,7 @@ func (this gameServerDocker) Spawn(code string, maxPlayers int) (address string,
 		"-e", fmt.Sprintf("SERVER_MAX_PLAYERS=%d", maxPlayers),
 		"-p", fmt.Sprintf("%d:8080", query),
 		"-p", fmt.Sprintf("%d:6969", game),
-        "--name", code,
+		"--name", code,
 		"game-echo:latest",
 	)
 	slog.Info("Running command: {}", cmd)

@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"matchmaker/migrations"
 	"matchmaker"
+	"matchmaker/migrations"
+	"os"
 	"strings"
 
 	"github.com/uptrace/bun/migrate"
