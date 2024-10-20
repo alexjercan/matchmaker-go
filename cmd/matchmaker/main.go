@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"matchmaker"
+	"math/rand"
 	"net"
 	"net/http"
 	"os/exec"
@@ -17,37 +18,53 @@ type GameServer interface {
 }
 
 type gameServerDocker struct {
-
 }
 
-func (this gameServerDocker)Spawn(code string, maxPlayers int) (address string, query int, game int, err error) {
-    listener, err := net.Listen("tcp", ":0")
-    if err != nil {
-        return
-    }
-    query = listener.Addr().(*net.TCPAddr).Port
-    listener.Close()
+func (this gameServerDocker) Spawn(code string, maxPlayers int) (address string, query int, game int, err error) {
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return
+	}
+	query = listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
-    listener, err = net.Listen("tcp", ":0")
-    if err != nil {
-        return
-    }
-    game = listener.Addr().(*net.TCPAddr).Port
-    listener.Close()
+	listener, err = net.Listen("tcp", ":0")
+	if err != nil {
+		return
+	}
+	game = listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
 
-    address = "0.0.0.0"
+	address = "0.0.0.0"
 
-    cmd := exec.Command("docker", "run", "-d", "-p", fmt.Sprintf("%d:6969", game), "game-echo:latest")
-    slog.Info("Running command: {}", cmd)
-    if err = cmd.Run(); err != nil {
-        return
-    }
+	cmd := exec.Command(
+		"docker", "run", "-d",
+		"-e", fmt.Sprintf("SERVER_MAX_PLAYERS=%d", maxPlayers),
+		"-p", fmt.Sprintf("%d:8080", query),
+		"-p", fmt.Sprintf("%d:6969", game),
+        "--name", code,
+		"game-echo:latest",
+	)
+	slog.Info("Running command: {}", cmd)
+	if err = cmd.Run(); err != nil {
+		return
+	}
 
-    return
+	return
 }
 
 func NewGameServer(cfg matchmaker.Config) GameServer {
-    return gameServerDocker{}
+	return gameServerDocker{}
+}
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func generateCode(n int) string {
+	bs := make([]rune, n)
+	for i := range bs {
+		bs[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(bs)
 }
 
 type HandlerV1 struct {
@@ -61,20 +78,16 @@ func (this HandlerV1) CreateRoom(c *gin.Context) {
 		c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
-
 	slog.Info("DTO is {}", dto)
 
-    // TODO: generate the code
-	code := "abcdef"
+	code := generateCode(6)
 
-	// spin up game server => Address
 	address, queryPort, gamePort, err := this.gameServer.Spawn(code, dto.MaxPlayers)
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
-	// save Room model in database => Fill in all fields that remain
 	room := matchmaker.Room{
 		Code:       code,
 		Address:    address,
@@ -124,11 +137,11 @@ func main() {
 	slog.Info("The config is {}", cfg)
 
 	db := matchmaker.NewDB(cfg)
-    gameServer := NewGameServer(cfg)
+	gameServer := NewGameServer(cfg)
 
 	handler := HandlerV1{
 		db,
-        gameServer,
+		gameServer,
 	}
 
 	router := gin.Default()
