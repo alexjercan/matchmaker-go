@@ -2,8 +2,12 @@ package matchmaker
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -24,6 +28,9 @@ type Config struct {
 		Password string `env:"DB_PASSWORD"`
 		Database string `env:"DB_DATABASE"`
 		Insecure bool   `env:"DB_INSECURE"`
+	}
+	Game struct {
+		Name string `env:"GAME_NAME"`
 	}
 }
 
@@ -83,4 +90,27 @@ type Room struct {
 	Private    bool      `bun:"private,notnull,default:false"`
 	CreatedAt  time.Time `bun:"createdAt,nullzero,notnull,default:current_timestamp" json:"createdAt"`
 	UpdatedAt  time.Time `bun:"updatedAt,nullzero,notnull,default:current_timestamp" json:"updatedAt"`
+}
+
+func (this Room) GetStatus() (status RoomStatus, err error) {
+	requestURL := fmt.Sprintf("http://%s:%d/api/v1/status", this.Address, this.QueryPort)
+	slog.Info("Making HTTP request to ", requestURL)
+
+	res, err := http.Get(requestURL)
+	if err != nil {
+		return
+	}
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(resBody, &status)
+
+	return
+}
+
+type RoomStatus struct {
+	Players int `json:"players"`
 }

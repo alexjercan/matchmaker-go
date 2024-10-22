@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"matchmaker"
@@ -8,19 +9,21 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/uptrace/bun"
 )
 
 type GameServer interface {
-	Spawn(code string, maxPlayers int) (string, int, int, error)
+	Spawn(code string, maxPlayers int, name string) (string, int, int, error)
+    Destroy(code string) error
 }
 
 type gameServerDocker struct {
 }
 
-func (this gameServerDocker) Spawn(code string, maxPlayers int) (address string, query int, game int, err error) {
+func (this gameServerDocker) Spawn(code string, maxPlayers int, name string) (address string, query int, game int, err error) {
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return
@@ -43,8 +46,18 @@ func (this gameServerDocker) Spawn(code string, maxPlayers int) (address string,
 		"-p", fmt.Sprintf("%d:8080", query),
 		"-p", fmt.Sprintf("%d:6969", game),
 		"--name", code,
-		"game-echo:latest",
+        fmt.Sprintf("%s", name),
 	)
+	slog.Info("Running command: {}", cmd)
+	if err = cmd.Run(); err != nil {
+		return
+	}
+
+	return
+}
+
+func (this gameServerDocker)Destroy(code string) (err error) {
+	cmd := exec.Command("docker", "kill", code)
 	slog.Info("Running command: {}", cmd)
 	if err = cmd.Run(); err != nil {
 		return
@@ -68,6 +81,7 @@ func generateCode(n int) string {
 }
 
 type HandlerV1 struct {
+    cfg        matchmaker.Config
 	db         *bun.DB
 	gameServer GameServer
 }
@@ -82,7 +96,7 @@ func (this HandlerV1) CreateRoom(c *gin.Context) {
 
 	code := generateCode(6)
 
-	address, queryPort, gamePort, err := this.gameServer.Spawn(code, dto.MaxPlayers)
+	address, queryPort, gamePort, err := this.gameServer.Spawn(code, dto.MaxPlayers, this.cfg.Game.Name)
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
@@ -132,16 +146,11 @@ func (this HandlerV1) GetRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, room)
 }
 
-func main() {
-	cfg := matchmaker.LoadConfig()
-	slog.Info("The config is {}", cfg)
-
-	db := matchmaker.NewDB(cfg)
-	gameServer := NewGameServer(cfg)
-
+func mainHTTP(cfg matchmaker.Config, db *bun.DB, server GameServer) {
 	handler := HandlerV1{
+        cfg,
 		db,
-		gameServer,
+		server,
 	}
 
 	router := gin.Default()
@@ -153,4 +162,50 @@ func main() {
 	apiV1.GET("/rooms/:code", handler.GetRoom)
 
 	router.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+}
+
+func healthCheck(db *bun.DB, server GameServer) (error) {
+    c := context.Background()
+	rooms := []matchmaker.Room{}
+
+    err := db.NewSelect().Model(&rooms).Scan(c)
+	if err != nil {
+		return err
+	}
+
+    for _, room := range rooms {
+        status, err := room.GetStatus()
+        if err != nil {
+            return err
+        }
+
+        if status.Players <= 0 {
+            slog.Info("Found an empty room ", room.Code, " will attempt to destroy it")
+            server.Destroy(room.Code)
+            _, err := db.NewDelete().Model(&room).WherePK().Exec(c)
+            if err != nil {
+                return err
+            }
+        }
+    }
+
+    return nil
+}
+
+func main() {
+	cfg := matchmaker.LoadConfig()
+	slog.Info("The config is {}", cfg)
+
+	db := matchmaker.NewDB(cfg)
+	server := NewGameServer(cfg)
+
+    go mainHTTP(cfg, db, server)
+
+	for {
+        err := healthCheck(db, server)
+        if err != nil {
+            slog.Error("Error while performing health check {}", err)
+        }
+        time.Sleep(60 * time.Second)
+	}
 }
